@@ -46,20 +46,7 @@ func NewExecCommand() *cobra.Command {
 		Short: "Execute arbitrary commands",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			config := DefaultConfig()
-			config.EnsureLogDir()
-
-			fmt.Printf("Executing: %v\n", args)
-
-			command := exec.Command(args[0], args[1:]...)
-			command.Dir = config.WorkingDir
-			command.Stdout = os.Stdout
-			command.Stderr = os.Stderr
-
-			if err := command.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "Command failed: %v\n", err)
-				os.Exit(1)
-			}
+			executeCommand(args[0], args[1:]...)
 		},
 	}
 }
@@ -79,7 +66,8 @@ func NewGitCommand() *cobra.Command {
 			if len(args) == 0 {
 				args = []string{"."}
 			}
-			executeGitCommand("add", args...)
+			gitArgs := append([]string{"add"}, args...)
+			executeCommand("git", gitArgs...)
 		},
 	})
 
@@ -92,7 +80,7 @@ func NewGitCommand() *cobra.Command {
 			if message == "" {
 				message = "feat: automated commit via copilot-agent-util"
 			}
-			executeGitCommand("commit", "-m", message)
+			executeCommand("git", "commit", "-m", message)
 		},
 	})
 
@@ -103,9 +91,9 @@ func NewGitCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			forceWithLease, _ := cmd.Flags().GetBool("force-with-lease")
 			if forceWithLease {
-				executeGitCommand("push", "--force-with-lease")
+				executeCommand("git", "push", "--force-with-lease")
 			} else {
-				executeGitCommand("push")
+				executeCommand("git", "push")
 			}
 		},
 	})
@@ -130,9 +118,9 @@ func NewBufCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			module, _ := cmd.Flags().GetString("module")
 			if module != "" {
-				executeBufCommand("generate", "--path", fmt.Sprintf("pkg/%s/proto", module))
+				executeCommand("buf", "generate", "--path", fmt.Sprintf("pkg/%s/proto", module))
 			} else {
-				executeBufCommand("generate")
+				executeCommand("buf", "generate")
 			}
 		},
 	})
@@ -210,33 +198,66 @@ func NewNpmCommand() *cobra.Command {
 	return npmCmd
 }
 
-// Helper functions
-func executeGitCommand(args ...string) {
-	executeCommand("git", args...)
-}
-
-func executeBufCommand(args ...string) {
-	executeCommand("buf", args...)
-}
-
+// executeCommand executes a command with logging and output to both terminal and log file
 func executeCommand(name string, args ...string) {
 	config := DefaultConfig()
-	config.EnsureLogDir()
+	if err := config.EnsureLogDir(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
+		os.Exit(1)
+	}
 
 	logFile := filepath.Join(config.LogDir, fmt.Sprintf("%s_%d.log", name, time.Now().Unix()))
 
 	fmt.Printf("Executing: %s %v\n", name, args)
 	fmt.Printf("Log file: %s\n", logFile)
 
+	// Create log file
+	logFileHandle, err := os.Create(logFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create log file: %v\n", err)
+		os.Exit(1)
+	}
+	defer logFileHandle.Close()
+
+	// Write command info to log
+	fmt.Fprintf(logFileHandle, "Command: %s %v\n", name, args)
+	fmt.Fprintf(logFileHandle, "Working Directory: %s\n", config.WorkingDir)
+	fmt.Fprintf(logFileHandle, "Timestamp: %s\n", time.Now().Format(time.RFC3339))
+	fmt.Fprintf(logFileHandle, "--- Output ---\n")
+
 	command := exec.Command(name, args...)
 	command.Dir = config.WorkingDir
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
+
+	// Create writers that tee output to both terminal and log file
+	stdoutWriter := &TeeWriter{terminal: os.Stdout, logFile: logFileHandle}
+	stderrWriter := &TeeWriter{terminal: os.Stderr, logFile: logFileHandle}
+
+	command.Stdout = stdoutWriter
+	command.Stderr = stderrWriter
 
 	if err := command.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Command failed: %v\n", err)
+		errorMsg := fmt.Sprintf("Command failed: %v\n", err)
+		fmt.Fprint(os.Stderr, errorMsg)
+		fmt.Fprint(logFileHandle, errorMsg)
 		os.Exit(1)
 	}
 
-	fmt.Println("Command completed successfully")
+	successMsg := "Command completed successfully\n"
+	fmt.Print(successMsg)
+	fmt.Fprint(logFileHandle, successMsg)
+}
+
+// TeeWriter writes to both terminal and log file
+type TeeWriter struct {
+	terminal *os.File
+	logFile  *os.File
+}
+
+func (t *TeeWriter) Write(p []byte) (n int, err error) {
+	// Write to terminal
+	if _, err := t.terminal.Write(p); err != nil {
+		return 0, err
+	}
+	// Write to log file
+	return t.logFile.Write(p)
 }
