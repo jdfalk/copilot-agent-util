@@ -125,7 +125,20 @@ func NewBufCommand() *cobra.Command {
 		},
 	})
 
-	bufCmd.PersistentFlags().String("module", "", "Specific module to generate")
+	bufCmd.AddCommand(&cobra.Command{
+		Use:   "lint",
+		Short: "Lint protocol buffers",
+		Run: func(cmd *cobra.Command, args []string) {
+			module, _ := cmd.Flags().GetString("module")
+			if module != "" {
+				executeCommand("buf", "lint", "--path", fmt.Sprintf("pkg/%s/proto", module))
+			} else {
+				executeCommand("buf", "lint")
+			}
+		},
+	})
+
+	bufCmd.PersistentFlags().String("module", "", "Specific module to generate/lint")
 
 	return bufCmd
 }
@@ -260,4 +273,188 @@ func (t *TeeWriter) Write(p []byte) (n int, err error) {
 	}
 	// Write to log file
 	return t.logFile.Write(p)
+}
+
+// NewLintersCommand creates linting subcommands
+func NewLintersCommand() *cobra.Command {
+	lintersCmd := &cobra.Command{
+		Use:   "lint",
+		Short: "Code linting and formatting tools",
+	}
+
+	// Prettier
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "prettier [files...]",
+		Short: "Format code with Prettier",
+		Run: func(cmd *cobra.Command, args []string) {
+			check, _ := cmd.Flags().GetBool("check")
+			write, _ := cmd.Flags().GetBool("write")
+
+			prettierArgs := []string{}
+			if check {
+				prettierArgs = append(prettierArgs, "--check")
+			}
+			if write {
+				prettierArgs = append(prettierArgs, "--write")
+			}
+
+			if len(args) == 0 {
+				args = []string{"."}
+			}
+			prettierArgs = append(prettierArgs, args...)
+			executeCommand("prettier", prettierArgs...)
+		},
+	})
+
+	// ESLint
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "eslint [files...]",
+		Short: "Lint JavaScript/TypeScript with ESLint",
+		Run: func(cmd *cobra.Command, args []string) {
+			fix, _ := cmd.Flags().GetBool("fix")
+
+			eslintArgs := []string{}
+			if fix {
+				eslintArgs = append(eslintArgs, "--fix")
+			}
+
+			if len(args) == 0 {
+				args = []string{"."}
+			}
+			eslintArgs = append(eslintArgs, args...)
+			executeCommand("eslint", eslintArgs...)
+		},
+	})
+
+	// Black (Python formatter)
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "black [files...]",
+		Short: "Format Python code with Black",
+		Run: func(cmd *cobra.Command, args []string) {
+			check, _ := cmd.Flags().GetBool("check")
+
+			blackArgs := []string{}
+			if check {
+				blackArgs = append(blackArgs, "--check")
+			}
+
+			if len(args) == 0 {
+				args = []string{"."}
+			}
+			blackArgs = append(blackArgs, args...)
+			executeCommand("black", blackArgs...)
+		},
+	})
+
+	// Flake8 (Python linter)
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "flake8 [files...]",
+		Short: "Lint Python code with Flake8",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				args = []string{"."}
+			}
+			executeCommand("flake8", args...)
+		},
+	})
+
+	// Go fmt
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "gofmt [files...]",
+		Short: "Format Go code with gofmt",
+		Run: func(cmd *cobra.Command, args []string) {
+			write, _ := cmd.Flags().GetBool("write")
+
+			gofmtArgs := []string{}
+			if write {
+				gofmtArgs = append(gofmtArgs, "-w")
+			}
+
+			if len(args) == 0 {
+				args = []string{"."}
+			}
+			gofmtArgs = append(gofmtArgs, args...)
+			executeCommand("gofmt", gofmtArgs...)
+		},
+	})
+
+	// Go vet
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "govet [packages...]",
+		Short: "Examine Go code with go vet",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				args = []string{"./..."}
+			}
+			govetArgs := append([]string{"vet"}, args...)
+			executeCommand("go", govetArgs...)
+		},
+	})
+
+	// Golint
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "golint [packages...]",
+		Short: "Lint Go code with golint",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				args = []string{"./..."}
+			}
+			executeCommand("golint", args...)
+		},
+	})
+
+	// Buf lint (alias for buf lint command)
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "buf [files...]",
+		Short: "Lint protocol buffers with buf",
+		Run: func(cmd *cobra.Command, args []string) {
+			module, _ := cmd.Flags().GetString("module")
+			if module != "" {
+				executeCommand("buf", "lint", "--path", fmt.Sprintf("pkg/%s/proto", module))
+			} else {
+				executeCommand("buf", "lint")
+			}
+		},
+	})
+
+	// Markdownlint
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "markdownlint [files...]",
+		Short: "Lint Markdown files",
+		Run: func(cmd *cobra.Command, args []string) {
+			fix, _ := cmd.Flags().GetBool("fix")
+
+			markdownArgs := []string{}
+			if fix {
+				markdownArgs = append(markdownArgs, "--fix")
+			}
+
+			if len(args) == 0 {
+				args = []string{"**/*.md"}
+			}
+			markdownArgs = append(markdownArgs, args...)
+			executeCommand("markdownlint", markdownArgs...)
+		},
+	})
+
+	// Shellcheck
+	lintersCmd.AddCommand(&cobra.Command{
+		Use:   "shellcheck [files...]",
+		Short: "Lint shell scripts with shellcheck",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				executeCommand("find", ".", "-name", "*.sh", "-exec", "shellcheck", "{}", "+")
+			} else {
+				executeCommand("shellcheck", args...)
+			}
+		},
+	})
+
+	// Add common flags
+	lintersCmd.PersistentFlags().Bool("check", false, "Check only, don't write changes")
+	lintersCmd.PersistentFlags().Bool("write", false, "Write changes to files")
+	lintersCmd.PersistentFlags().Bool("fix", false, "Fix issues automatically")
+	lintersCmd.PersistentFlags().String("module", "", "Specific module for buf lint")
+
+	return lintersCmd
 }

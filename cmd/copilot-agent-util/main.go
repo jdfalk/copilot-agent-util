@@ -30,6 +30,7 @@ func init() {
 	rootCmd.AddCommand(executor.NewFileCommand())
 	rootCmd.AddCommand(executor.NewPythonCommand())
 	rootCmd.AddCommand(executor.NewNpmCommand())
+	rootCmd.AddCommand(executor.NewLintersCommand())
 }
 
 func main() {
