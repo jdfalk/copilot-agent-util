@@ -1,8 +1,40 @@
 <!-- file: README.md -->
-<!-- version: 1.0.0 -->
+<!-- version: 2.0.0 -->
 <!-- guid: 56b982b3-90bf-4cc0-bd95-168e7d67ee23 -->
 
-# Copilot Agent Utility
+# ⚠️ DEPRECATED - Copilot Agent Utility (Go Version)
+
+**🚨 This Go implementation is deprecated in favor of the superior Rust version.**
+
+**👉 Please use: [copilot-agent-util-rust](https://github.com/jdfalk/copilot-agent-util-rust)**
+
+## Migration Notice
+
+This repository is no longer actively maintained. The Rust implementation provides:
+
+- **Superior memory safety** and **performance**
+- **Comprehensive Unix utilities** integration (30+ commands via uutils/coreutils)
+- **Enhanced command suite** including git, sed, awk, and custom editor
+- **Dual logging system** with timestamped files
+- **Better error handling** and **robust concurrent execution**
+
+### Quick Migration
+
+Replace your installation:
+
+```bash
+# Remove Go version (if installed)
+go clean -i github.com/jdfalk/copilot-agent-util/cmd/copilot-agent-util
+
+# Install Rust version
+cargo install --git https://github.com/jdfalk/copilot-agent-util-rust
+```
+
+The Rust version maintains full API compatibility while providing significant improvements.
+
+---
+
+## Legacy Documentation (Go Version - DEPRECATED)
 
 A centralized command execution utility designed to solve VS Code task execution issues and provide consistent logging for Copilot/AI agent operations.
 
